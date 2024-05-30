@@ -2,6 +2,10 @@
 
 This project implements a follower node for Scroll L2 that participates in the public mempool of transactions but does not participate in the consensus of block building. It leverages the highly modular `reth` stack and `alloy` to achieve its functionality. 
 
+## Work in Progress!
+
+Please note that Scroll-reth is currently in its early stages of development.
+
 ## Overview
 
 The Scroll L2 follower node is designed to:
