@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    env,
     fs::File,
     io::{Error, Read},
     str::FromStr,
@@ -33,6 +34,7 @@ use crate::{
     rollup_sync_service_util::{decode_chunk_block_ranges, ChunkBlockRange},
     ScrollChain::ScrollChainEvents,
 };
+use dotenv::dotenv;
 
 #[derive(Debug)]
 pub struct CommitBatchArgs {
@@ -134,6 +136,7 @@ impl RollupSyncService {
         to: u64,
     ) -> (Vec<(ScrollChainEvents, H256)>, u64) {
         let mut filtered_rollup_events = vec![];
+        let l1_scroll_chain_address = env::var("L1_SCROLL_CHAIN_ADDRESS").unwrap();
         println!("Fetching logs from {} to {}", from, to);
         for block_number in (from..to + 1).step_by(1) {
             println!("Block number: {:?}\n", block_number);
@@ -157,10 +160,7 @@ impl RollupSyncService {
             let new_logs: Vec<(ScrollChainEvents, H256)> = receipts
                 .iter()
                 .filter(|receipt| {
-                    receipt.to
-                        == Some(
-                            H160::from_str("0xa13BAF47339d63B743e7Da8741db5456DAc1E556").unwrap(),
-                        )
+                    receipt.to == Some(H160::from_str(&l1_scroll_chain_address).unwrap())
                 })
                 .flat_map(|receipt| receipt.logs.iter().map(move |log| (receipt, log)))
                 .filter_map(|(receipt, log)| {
@@ -173,7 +173,7 @@ impl RollupSyncService {
                         .ok()
                         .map(|event| (event, receipt.transaction_hash))
                 })
-                .filter(|(event, _txHash)| match event {
+                .filter(|(event, _)| match event {
                     ScrollChainEvents::CommitBatch(_) => true,
                     ScrollChainEvents::RevertBatch(_) => true,
                     ScrollChainEvents::FinalizeBatch(_) => true,
@@ -202,7 +202,6 @@ impl RollupSyncService {
         for (event, tx_hash) in rollup_events {
             match event {
                 ScrollChainEvents::CommitBatch(commit_batch) => {
-                    let batch_hash = commit_batch.batchHash;
                     let batch_index = commit_batch.batchIndex;
 
                     // convert batch_index to u64

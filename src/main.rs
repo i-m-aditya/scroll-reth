@@ -67,21 +67,11 @@ async fn main() {
     // Opening database at a specific path
     let path = env::current_dir().unwrap().join("scroll-db");
     let db = create_test_db(DatabaseEnvKind::RW, path.as_path());
-    // let tx_mut = db.tx_mut().expect("Could not create transaction");
-    println!("Database opened successfully");
-    /*
-     * Start the sync service
-     * initialize the sync service
-     * and then start
-     */
 
-    let provider = Provider::try_from(
-        "https://black-proportionate-haze.quiknode.pro/5dc77552bcfa565227baa9701c48da45f8b37b34/"
-            .to_string(),
-    )
-    .unwrap();
+    let rpc_url = env::var("L1_RPC_URL").unwrap();
+    let provider = Provider::try_from(rpc_url).unwrap();
 
-    let (l1_tx, mut l1_rx) = mpsc::channel(1);
+    let (_, mut l1_rx) = mpsc::channel(1);
 
     // println!("Here");
     let sync_service = SyncService::new(db.clone(), provider.clone());
@@ -89,18 +79,6 @@ async fn main() {
     let sync_handle = tokio::spawn(async move {
         sync_service.start(&mut l1_rx).await;
     });
-
-    // println!("Hello");
-    // // println!("Sync Service: {:?}", sync_service);
-
-    // // TODO be included later
-    // // ctrl_c()
-    // //     .await
-    // //     .expect("Failed to listen for termination signal");
-
-    // // tx.send(())
-    // //     .await
-    // //     .expect("Failed to send termination signal");
 
     sync_handle.await.expect("Sync service task panicked");
 

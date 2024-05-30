@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    env,
     io::Error,
     str::FromStr,
     sync::Arc,
@@ -148,6 +149,7 @@ impl SyncService {
 
     pub async fn get_filtered_logs(&self, from: u64, to: u64) -> (Vec<L1MessageQueueEvents>, u64) {
         let mut filtered_logs = vec![];
+        let l1_scroll_messenger = env::var("L1_SCROLL_MESSENGER").unwrap();
         println!("Fetching logs from {} to {}", from, to);
         for block_number in (from..to + 1).step_by(1) {
             println!("Block number: {:?}\n", block_number);
@@ -170,12 +172,7 @@ impl SyncService {
 
             let new_logs: Vec<L1MessageQueueEvents> = receipts
                 .iter()
-                .filter(|receipt| {
-                    receipt.to
-                        == Some(
-                            H160::from_str("0x6774Bcbd5ceCeF1336b5300fb5186a12DDD8b367").unwrap(),
-                        )
-                })
+                .filter(|receipt| receipt.to == Some(H160::from_str(&l1_scroll_messenger).unwrap()))
                 .flat_map(|receipt| receipt.logs.iter().map(move |log| (receipt, log)))
                 .filter_map(|(_receipt, log)| {
                     let topics: Vec<_> = log
