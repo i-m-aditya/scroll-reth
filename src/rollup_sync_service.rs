@@ -136,7 +136,7 @@ impl RollupSyncService {
         to: u64,
     ) -> (Vec<(ScrollChainEvents, H256)>, u64) {
         let mut filtered_rollup_events = vec![];
-        let l1_scroll_chain_address = env::var("L1_SCROLL_CHAIN_ADDRESS").unwrap();
+        let l1_scroll_chain_address = env::var("L1_SCROLL_CHAIN").unwrap();
         println!("Fetching logs from {} to {}", from, to);
         for block_number in (from..to + 1).step_by(1) {
             println!("Block number: {:?}\n", block_number);

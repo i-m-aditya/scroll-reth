@@ -63,12 +63,14 @@ fn create_test_db(kind: DatabaseEnvKind, path: &Path) -> Arc<DatabaseEnv> {
 }
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     println!("Hello, world!");
     // Opening database at a specific path
     let path = env::current_dir().unwrap().join("scroll-db");
     let db = create_test_db(DatabaseEnvKind::RW, path.as_path());
 
     let rpc_url = env::var("L1_RPC_URL").unwrap();
+    println!("RPC URL: {}", rpc_url);
     let provider = Provider::try_from(rpc_url).unwrap();
 
     let (_, mut l1_rx) = mpsc::channel(1);
