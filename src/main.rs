@@ -64,7 +64,6 @@ fn create_test_db(kind: DatabaseEnvKind, path: &Path) -> Arc<DatabaseEnv> {
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
-    println!("Hello, world!");
     // Opening database at a specific path
     let path = env::current_dir().unwrap().join("scroll-db");
     let db = create_test_db(DatabaseEnvKind::RW, path.as_path());
@@ -75,7 +74,6 @@ async fn main() {
 
     let (_, mut l1_rx) = mpsc::channel(1);
 
-    // println!("Here");
     let sync_service = SyncService::new(db.clone(), provider.clone());
 
     let sync_handle = tokio::spawn(async move {
@@ -107,11 +105,4 @@ async fn main() {
             rollup_tx.send(()).await.expect("Failed to send termination signal to rollup sync service");
         }
     }
-
-    // ctrl_c()
-    //     .await
-    //     .expect("Failed to listen for termination signal");
-    // tx.send(())
-    //     .await
-    //     .expect("Failed to send termination signal");
 }
