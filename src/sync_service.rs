@@ -1,30 +1,20 @@
-use std::{
-    cmp::{max, min},
-    env,
-    io::Error,
-    str::FromStr,
-    sync::Arc,
-    time::Duration,
-};
+use std::{cmp::min, env, str::FromStr, sync::Arc};
 
 use alloy_primitives::Address;
 use alloy_rlp::RlpEncodable;
-use alloy_sol_types::{private::FixedBytes, sol, SolEventInterface, SolInterface};
+use alloy_sol_types::{private::FixedBytes, SolEventInterface};
 use ethers::{
     providers::{Http, Middleware, Provider},
     types::H160,
 };
 use reth_db::{
     database::Database,
-    mdbx::{
-        tx::{self, Tx},
-        RW,
-    },
+    mdbx::{tx::Tx, RW},
     tables,
     transaction::{DbTx, DbTxMut},
     DatabaseEnv,
 };
-use tokio::{sync::mpsc, time::sleep};
+use tokio::sync::oneshot;
 
 use crate::L1MessageQueue::L1MessageQueueEvents;
 
@@ -79,8 +69,7 @@ impl SyncService {
         }
     }
 
-    pub async fn start(&self, terminate_rx: &mut mpsc::Receiver<()>) {
-        // let mut lsb = self.last_synced_block.unwrap();
+    pub async fn start(&self, terminate_rx: oneshot::Receiver<()>) {
         println!("Sync service started");
         let mut tx = self.db.tx_mut().unwrap();
         loop {
@@ -88,7 +77,7 @@ impl SyncService {
                 _ = self.fetch_messages(&mut tx) => {
                     break;
                 }
-                _ = terminate_rx.recv() => {
+                _ = terminate_rx => {
                     println!("Received a message to stop the sync service");
                     break;
                 }

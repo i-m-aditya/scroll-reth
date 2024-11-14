@@ -1,16 +1,6 @@
-use std::{
-    cmp::{max, min},
-    env,
-    fs::File,
-    io::{Error, Read},
-    str::FromStr,
-    sync::Arc,
-    time::Duration,
-};
+use std::{cmp::min, env, fs::File, io::Read, str::FromStr, sync::Arc};
 
-use alloy_primitives::Address;
-use alloy_rlp::RlpEncodable;
-use alloy_sol_types::{private::FixedBytes, sol, SolEventInterface, SolInterface};
+use alloy_sol_types::{private::FixedBytes, SolEventInterface};
 use ethers::{abi::Abi, types::H256, utils::rlp};
 use ethers::{
     providers::{Http, Middleware, Provider},
@@ -18,31 +8,19 @@ use ethers::{
 };
 use reth_db::{
     database::Database,
-    mdbx::{
-        tx::{self, Tx},
-        RW,
-    },
-    table, tables,
+    mdbx::{tx::Tx, RW},
+    tables,
     transaction::{DbTx, DbTxMut},
     DatabaseEnv,
 };
-use rlp::{Decodable, Encodable, Rlp, RlpStream};
+use rlp::RlpStream;
 use serde_json::Value;
-use tokio::{sync::mpsc, time::sleep};
+use tokio::sync::oneshot;
 
 use crate::{
     rollup_sync_service_util::{decode_chunk_block_ranges, ChunkBlockRange},
     ScrollChain::ScrollChainEvents,
 };
-use dotenv::dotenv;
-
-#[derive(Debug)]
-pub struct CommitBatchArgs {
-    version: u8,
-    parent_batch_header: Vec<u8>,
-    chunks: Vec<Vec<u8>>,
-    skipped_l1_message_bitmap: Vec<u8>,
-}
 
 #[derive(Debug)]
 pub struct RollupSyncService {
@@ -80,7 +58,7 @@ impl RollupSyncService {
         }
     }
 
-    pub async fn start(&self, terminate_rx: &mut mpsc::Receiver<()>) {
+    pub async fn start(&self, terminate_rx: oneshot::Receiver<()>) {
         println!("Rollup sync service started");
         let mut tx = self.db.tx_mut().unwrap();
         loop {
@@ -88,7 +66,7 @@ impl RollupSyncService {
                 _ = self.fetch_rollup_events(&mut tx) => {
                     break;
                 }
-                _ = terminate_rx.recv() => {
+                _ = terminate_rx => {
                     println!("Received a message to stop the Rollup sync service");
                     break;
                 }

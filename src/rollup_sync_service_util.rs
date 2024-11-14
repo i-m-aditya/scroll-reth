@@ -1,12 +1,7 @@
-use alloy_primitives::hex;
-use ethers::abi::{Abi, Function, FunctionExt, Token};
+use ethers::abi::{Abi, Function};
 use ethers::utils::rlp;
 use rlp::{Decodable, Encodable, Rlp, RlpStream};
-use serde::Deserialize;
-use std::convert::TryFrom;
 use std::error::Error;
-use std::fs::File;
-use std::io::Read;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChunkBlockRange {
@@ -29,14 +24,6 @@ impl Decodable for ChunkBlockRange {
             end_block_number: rlp.val_at(1)?,
         })
     }
-}
-
-#[derive(Debug)]
-pub struct CommitBatchArgs {
-    version: u8,
-    parent_batch_header: Vec<u8>,
-    chunks: Vec<Vec<u8>>,
-    skipped_l1_message_bitmap: Vec<u8>,
 }
 
 #[derive(Debug)]

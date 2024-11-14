@@ -1,37 +1,15 @@
-use std::{
-    env,
-    fs::File,
-    io::{Error, Read, Write},
-    ops::Add,
-    path::{Path, PathBuf},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{env, path::Path, sync::Arc};
 
-use alloy_primitives::{address, Address, TxHash};
-
-use alloy_sol_types::{private::FixedBytes, sol, SolEventInterface, SolInterface};
-use ethers::{
-    abi::{Abi, Bytes},
-    core::k256::elliptic_curve::rand_core::block,
-    providers::{Middleware, Provider},
-    types::{Transaction, H160, H256, U64},
-};
+use alloy_sol_types::sol;
+use anyhow::Result;
+use ethers::providers::Provider;
 use reth_db::{
-    database::Database,
     mdbx::DatabaseArguments,
     models::client_version::ClientVersion,
-    tables,
-    test_utils::{ERROR_DB_CREATION, ERROR_TABLE_CREATION, ERROR_TEMPDIR},
-    transaction::{DbTx, DbTxMut},
+    test_utils::{ERROR_DB_CREATION, ERROR_TABLE_CREATION},
     DatabaseEnv, DatabaseEnvKind,
 };
 use rollup_sync_service::RollupSyncService;
-use rollup_sync_service_util::decode_chunk_block_ranges;
-
-use alloy_rlp::{RlpDecodable, RlpEncodable};
-use serde::Deserialize;
-use serde_json::Value;
 
 mod rollup_sync_service;
 mod rollup_sync_service_util;
@@ -40,9 +18,7 @@ mod sync_service;
 sol!(L1MessageQueue, "l1_message_queue.json");
 sol!(ScrollChain, "scroll_chain_abi.json");
 use sync_service::SyncService;
-use tokio::{signal::ctrl_c, sync::mpsc};
-use L1MessageQueue::{L1MessageQueueCalls, L1MessageQueueEvents};
-use ScrollChain::{ScrollChainCalls, ScrollChainEvents};
+use tokio::{signal::ctrl_c, sync::oneshot};
 
 fn create_test_db(kind: DatabaseEnvKind, path: &Path) -> Arc<DatabaseEnv> {
     if !path.exists() {
@@ -60,22 +36,22 @@ fn create_test_db(kind: DatabaseEnvKind, path: &Path) -> Arc<DatabaseEnv> {
     }
 }
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     // Opening database at a specific path
     let path = env::current_dir().unwrap().join("scroll-db");
     let db = create_test_db(DatabaseEnvKind::RW, path.as_path());
 
     let rpc_url = env::var("L1_RPC_URL").unwrap();
-    println!("RPC URL: {}", rpc_url);
+
     let provider = Provider::try_from(rpc_url).unwrap();
 
-    let (_, mut l1_rx) = mpsc::channel(1);
+    let (l1_tx, l1_rx) = oneshot::channel();
 
     let sync_service = SyncService::new(db.clone(), provider.clone());
 
     let sync_handle = tokio::spawn(async move {
-        sync_service.start(&mut l1_rx).await;
+        sync_service.start(l1_rx).await;
     });
 
     sync_handle.await.expect("Sync service task panicked");
@@ -87,10 +63,10 @@ async fn main() {
 
     let rollup_sync_service = RollupSyncService::new(db.clone(), provider.clone());
 
-    let (rollup_tx, mut rollup_rx) = mpsc::channel(1);
+    let (rollup_tx, rollup_rx) = oneshot::channel();
 
     let rollup_handle = tokio::spawn(async move {
-        rollup_sync_service.start(&mut rollup_rx).await;
+        rollup_sync_service.start(rollup_rx).await;
     });
 
     // To prevent the main function from exiting immediately, you can wait for a signal or sleep
@@ -100,7 +76,9 @@ async fn main() {
         }
         _ = ctrl_c() => {
             println!("Termination signal received. Shutting down.");
-            rollup_tx.send(()).await.expect("Failed to send termination signal to rollup sync service");
+            let _ = rollup_tx.send(());
+            let _ = l1_tx.send(());
         }
     }
+    Ok(())
 }
