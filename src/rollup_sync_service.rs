@@ -16,6 +16,7 @@ use reth_db::{
 use rlp::RlpStream;
 use serde_json::Value;
 use tokio::sync::oneshot;
+use tracing::info;
 
 use crate::{
     rollup_sync_service_util::{decode_chunk_block_ranges, ChunkBlockRange},
@@ -39,7 +40,7 @@ impl RollupSyncService {
                 "RLastRollupEventSyncedL1BlockNumber".to_string(),
             )
             .expect("Could not fetch last synced block number");
-        println!("Last processed block: {:?}", last_processed_block);
+        info!("Last processed block: {:?}", last_processed_block);
         if last_processed_block.is_none() {
             last_processed_block = Some(19972300);
             tx.put::<tables::RollupSyncL1LastBlockNumber>(
@@ -59,7 +60,7 @@ impl RollupSyncService {
     }
 
     pub async fn start(&self, terminate_rx: oneshot::Receiver<()>) {
-        println!("Rollup sync service started");
+        info!("Rollup sync service started");
         let mut tx = self.db.tx_mut().unwrap();
         loop {
             tokio::select! {
@@ -67,28 +68,25 @@ impl RollupSyncService {
                     break;
                 }
                 _ = terminate_rx => {
-                    println!("Received a message to stop the Rollup sync service");
+                    info!("Received a message to stop the Rollup sync service");
                     break;
                 }
             }
         }
         tx.commit().expect("Could not commit transaction");
-        println!("Rollup sync service stopped");
+        info!("Rollup sync service stopped");
     }
 
     pub async fn fetch_rollup_events(&self, tx_mut: &mut Tx<RW>) {
         let from = self.last_synced_block.unwrap();
         let to = self.provider.get_block_number().await.unwrap().as_u64();
-        println!(
-            "-------------------Fetching rollup events from {} to {}",
-            from, to
-        );
+        info!("Fetching rollup events from {} to {}", from, to);
 
         for block in (from..to).step_by(100) {
             let (filtered_rollup_events, last_block_number) = self
                 .fetch_rollup_events_in_range(block, min(block + 100, to))
                 .await;
-            println!(
+            info!(
                 "Fetched {} rollup events from block {} to {}",
                 filtered_rollup_events.len(),
                 block,
@@ -115,12 +113,12 @@ impl RollupSyncService {
     ) -> (Vec<(ScrollChainEvents, H256)>, u64) {
         let mut filtered_rollup_events = vec![];
         let l1_scroll_chain_address = env::var("L1_SCROLL_CHAIN").unwrap();
-        println!("Fetching logs from {} to {}", from, to);
+        info!("Fetching logs from {} to {}", from, to);
         for block_number in (from..to + 1).step_by(1) {
-            println!("Block number: {:?}\n", block_number);
+            info!("Block number: {:?}\n", block_number);
             let receipts = self.provider.get_block_receipts(block_number).await;
             if receipts.is_err() {
-                println!(
+                info!(
                     "Error fetching receipts for block number: {:?}",
                     block_number
                 );
@@ -129,7 +127,7 @@ impl RollupSyncService {
             }
             let receipts = receipts.unwrap();
 
-            println!(
+            info!(
                 "block number: {:?},, receipts length: {:?}",
                 block_number,
                 receipts.len()
@@ -160,7 +158,7 @@ impl RollupSyncService {
                 .collect();
 
             if new_logs.len() > 0 {
-                println!(
+                info!(
                     "New logs: {:?}, block_number {:?}",
                     new_logs.len(),
                     block_number
@@ -187,7 +185,7 @@ impl RollupSyncService {
 
                     let chunk_block_ranges = self.get_chunk_ranges(tx_hash).await;
 
-                    println!(
+                    info!(
                         "Length of chunk_block_ranges: {:?}",
                         chunk_block_ranges.len()
                     );

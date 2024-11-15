@@ -2,6 +2,7 @@ use ethers::abi::{Abi, Function};
 use ethers::utils::rlp;
 use rlp::{Decodable, Encodable, Rlp, RlpStream};
 use std::error::Error;
+use tracing::info;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChunkBlockRange {
@@ -93,7 +94,7 @@ pub fn decode_block_ranges_from_encoded_chunks(
                 }
 
                 let mut da_blocks = Vec::new();
-                println!("******Num of blocks: {:?}\n\n", num_blocks);
+                info!("******Num of blocks: {:?}\n\n", num_blocks);
                 for i in 0..num_blocks {
                     let start_idx = 1 + i * 60; // add 1 to skip numBlocks byte
                     let end_idx = start_idx + 60;
@@ -132,7 +133,6 @@ pub fn decode_chunk_block_ranges(
 
     let method_id = &tx_data[..METHOD_ID_LENGTH];
 
-    // println!("Method ID: {:?}", hex::encode(method_id));
     let mut method: Option<&Function> = None;
 
     for f in abi.functions() {
@@ -145,11 +145,7 @@ pub fn decode_chunk_block_ranges(
     let method =
         method.ok_or_else(|| format!("failed to get method by ID, ID: {:?}", method_id))?;
 
-    // println!("Method: {:?}", method);
-    // println!("-----------");
-
     let inputs = method.decode_input(&tx_data[METHOD_ID_LENGTH..])?;
-    // println!("Inputs: {:?}", inputs.len());
     let version: u8 = inputs[0].clone().into_uint().unwrap().as_u64() as u8;
     let chunks: Vec<Vec<u8>> = inputs[2]
         .clone()

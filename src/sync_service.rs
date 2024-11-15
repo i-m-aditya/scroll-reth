@@ -15,6 +15,7 @@ use reth_db::{
     DatabaseEnv,
 };
 use tokio::sync::oneshot;
+use tracing::info;
 
 use crate::L1MessageQueue::L1MessageQueueEvents;
 
@@ -52,7 +53,7 @@ impl SyncService {
             .unwrap();
 
         // Put the genesis block if the last synced block is None
-        println!("Last synced block: {:?}", last_synced_block);
+        info!("Last synced block: {:?}", last_synced_block);
         if last_synced_block.is_none() {
             // last_synced_block = Some(18306000);
             last_synced_block = Some(19972300);
@@ -70,7 +71,7 @@ impl SyncService {
     }
 
     pub async fn start(&self, terminate_rx: oneshot::Receiver<()>) {
-        println!("Sync service started");
+        info!("Sync service started");
         let mut tx = self.db.tx_mut().unwrap();
         loop {
             tokio::select! {
@@ -78,33 +79,30 @@ impl SyncService {
                     break;
                 }
                 _ = terminate_rx => {
-                    println!("Received a message to stop the sync service");
+                    info!("Received a message to stop the sync service");
                     break;
                 }
 
             }
         }
         tx.commit().expect("Could not commit transaction");
-        println!("Sync service stopped");
+        info!("Sync service stopped");
     }
     async fn fetch_messages(&self, tx_mut: &mut Tx<RW>) {
         let from = self.last_synced_block.unwrap();
         let to = self.provider.get_block_number().await.unwrap().as_u64();
-        println!(
+        info!(
             "-------------------Fetching messages from {} to {}",
             from, to
         );
 
-        // let mut filtered_logs = vec![];
-        // let tx_mut = self.db.tx_mut().unwrap();
         for block_number in (from..to).step_by(100) {
-            // println!("###Logs: {:?}", logs.len());
-            println!("###Block number: {:?}", block_number);
+            info!("###Block number: {:?}", block_number);
             let (logs, last_queried_block) = self
                 .get_filtered_logs(block_number, min(to, block_number + 100))
                 .await;
-            println!("***Logs: {:?}", logs.len());
-            println!("***Block number: {:?}", block_number);
+            info!("***Logs: {:?}", logs.len());
+            info!("***Block number: {:?}", block_number);
 
             tx_mut
                 .put::<tables::SyncL1LastBlockNumber>(
@@ -139,12 +137,12 @@ impl SyncService {
     pub async fn get_filtered_logs(&self, from: u64, to: u64) -> (Vec<L1MessageQueueEvents>, u64) {
         let mut filtered_logs = vec![];
         let l1_scroll_messenger = env::var("L1_SCROLL_MESSENGER").unwrap();
-        println!("Fetching logs from {} to {}", from, to);
+        info!("Fetching logs from {} to {}", from, to);
         for block_number in (from..to + 1).step_by(1) {
-            println!("Block number: {:?}\n", block_number);
+            info!("Block number: {:?}\n", block_number);
             let receipts = self.provider.get_block_receipts(block_number).await;
             if receipts.is_err() {
-                println!(
+                info!(
                     "Error fetching receipts for block number: {:?}",
                     block_number
                 );
@@ -153,7 +151,7 @@ impl SyncService {
             }
             let receipts = receipts.unwrap();
 
-            println!(
+            info!(
                 "block number: {:?},, receipts length: {:?}",
                 block_number,
                 receipts.len()
@@ -180,7 +178,7 @@ impl SyncService {
                 .collect();
 
             if new_logs.len() > 0 {
-                println!(
+                info!(
                     "New logs: {:?}, block_number {:?}",
                     new_logs.len(),
                     block_number

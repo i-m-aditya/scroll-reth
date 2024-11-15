@@ -19,16 +19,17 @@ sol!(L1MessageQueue, "l1_message_queue.json");
 sol!(ScrollChain, "scroll_chain_abi.json");
 use sync_service::SyncService;
 use tokio::{signal::ctrl_c, sync::oneshot};
+use tracing::info;
 
 fn create_test_db(kind: DatabaseEnvKind, path: &Path) -> Arc<DatabaseEnv> {
     if !path.exists() {
-        println!("Database does not exist, creating new one...");
+        info!("Database does not exist, creating new one...");
         let env = DatabaseEnv::open(path, kind, DatabaseArguments::new(ClientVersion::default()))
             .expect(ERROR_DB_CREATION);
         env.create_tables().expect(ERROR_TABLE_CREATION);
         Arc::new(env)
     } else {
-        println!("Opening existing database...");
+        info!("Opening existing database...");
         Arc::new(
             DatabaseEnv::open(path, kind, DatabaseArguments::new(ClientVersion::default()))
                 .expect("Could not open database at path"),
@@ -38,6 +39,7 @@ fn create_test_db(kind: DatabaseEnvKind, path: &Path) -> Arc<DatabaseEnv> {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
+
     // Opening database at a specific path
     let path = env::current_dir().unwrap().join("scroll-db");
     let db = create_test_db(DatabaseEnvKind::RW, path.as_path());
@@ -56,10 +58,10 @@ async fn main() -> Result<()> {
 
     sync_handle.await.expect("Sync service task panicked");
 
-    println!("Sync service has been gracefully shut down.");
+    info!("Sync service has been gracefully shut down.");
 
     // Now start the rollup sync service in background
-    println!("Rollup sync service starting...");
+    info!("Rollup sync service starting...");
 
     let rollup_sync_service = RollupSyncService::new(db.clone(), provider.clone());
 
@@ -72,10 +74,10 @@ async fn main() -> Result<()> {
     // To prevent the main function from exiting immediately, you can wait for a signal or sleep
     tokio::select! {
         _ = rollup_handle => {
-            println!("Rollup sync service has been gracefully shut down.");
+            info!("Rollup sync service has been gracefully shut down.");
         }
         _ = ctrl_c() => {
-            println!("Termination signal received. Shutting down.");
+            info!("Termination signal received. Shutting down.");
             let _ = rollup_tx.send(());
             let _ = l1_tx.send(());
         }
